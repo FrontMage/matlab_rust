@@ -22,16 +22,15 @@ pub fn square(m: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
 
 /// Fast fourier transform 2d
 pub fn fft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
+  let mut planer = FftPlannerAvx::new().unwrap();
   let mut input_tp = tp(&input_matrix);
-  input_tp.iter_mut().for_each(|mut row| {
-    let mut planer = FftPlannerAvx::new().unwrap();
-    let fft = planer.plan_fft_forward(row.len());
+  let fft = planer.plan_fft_forward(input_tp[0].len());
+  input_tp.par_iter_mut().for_each(|mut row| {
     fft.process(&mut row);
   });
   let mut input_tp_tp = tp(&input_tp);
-  input_tp_tp.iter_mut().for_each(|mut row| {
-    let mut planer = FftPlannerAvx::new().unwrap();
-    let fft = planer.plan_fft_forward(row.len());
+  planer.plan_fft_forward(input_tp_tp[0].len());
+  input_tp_tp.par_iter_mut().for_each(|mut row| {
     fft.process(&mut row);
   });
   input_tp_tp
@@ -40,9 +39,9 @@ pub fn fft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
 /// Fast inverse fourier transform 2d
 pub fn ifft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
   let mut input_tp = tp(&input_matrix);
-  input_tp.iter_mut().for_each(|mut row| {
-    let mut planer = FftPlannerAvx::new().unwrap();
-    let fft = planer.plan_fft_inverse(row.len());
+  let mut planer = FftPlannerAvx::new().unwrap();
+  let fft = planer.plan_fft_inverse(input_tp[0].len());
+  input_tp.par_iter_mut().for_each(|mut row| {
     fft.process(&mut row);
     let row_length = row.len();
     row.iter_mut().for_each(|el| {
@@ -51,9 +50,8 @@ pub fn ifft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
     });
   });
   let mut input_tp_tp = tp(&input_tp);
-  input_tp_tp.iter_mut().for_each(|mut row| {
-    let mut planer = FftPlannerAvx::new().unwrap();
-    let fft = planer.plan_fft_inverse(row.len());
+  planer.plan_fft_inverse(input_tp_tp[0].len());
+  input_tp_tp.par_iter_mut().for_each(|mut row| {
     fft.process(&mut row);
     let row_length = row.len();
     row.iter_mut().for_each(|el| {
@@ -247,7 +245,7 @@ mod test {
       vec![Complex::new(4.0, 0.0), Complex::new(2.0, 0.0)],
     ];
     pretty_print(&conv2(&x, &y));
-    pretty_print(&conv2_fft(&x, &y));
+    pretty_print(&conv2_fft(&x, &rot180(&y)));
   }
   #[test]
   fn test_fft_ifft() {
