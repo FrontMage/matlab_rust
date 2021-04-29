@@ -1,7 +1,8 @@
 use ndarray::prelude::*;
 pub use num_complex::Complex;
-use num_traits::Zero;
+use num_traits::{Num, Zero};
 use rayon::prelude::*;
+use rustfft::FftNum;
 pub use rustfft::FftPlannerAvx;
 use std::cmp::max;
 use transpose::transpose_inplace;
@@ -14,30 +15,30 @@ pub fn abs(m: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<f64>> {
 }
 
 /// Square each elements
-pub fn square(m: &Vec<Vec<f64>>) -> Vec<Vec<f64>> {
+pub fn square<T: Num + Copy>(m: &Vec<Vec<T>>) -> Vec<Vec<T>> {
   m.iter()
-    .map(|row| row.iter().map(|el| el * el).collect())
+    .map(|row| row.iter().map(|el| el.mul(*el)).collect())
     .collect()
 }
 
 /// Fast fourier transform 2d
-pub fn fft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
+pub fn fft2<T: FftNum>(input_matrix: &Vec<Vec<Complex<T>>>) -> Vec<Vec<Complex<T>>> {
   let mut planer = FftPlannerAvx::new().unwrap();
   let mut input_tp = tp(&input_matrix);
   let fft = planer.plan_fft_forward(input_tp[0].len());
-  input_tp.par_iter_mut().for_each(|mut row| {
+  input_tp.iter_mut().for_each(|mut row| {
     fft.process(&mut row);
   });
   let mut input_tp_tp = tp(&input_tp);
   planer.plan_fft_forward(input_tp_tp[0].len());
-  input_tp_tp.par_iter_mut().for_each(|mut row| {
+  input_tp_tp.iter_mut().for_each(|mut row| {
     fft.process(&mut row);
   });
   input_tp_tp
 }
 
 /// Fast inverse fourier transform 2d
-pub fn ifft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
+pub fn ifft2<T: FftNum>(input_matrix: &Vec<Vec<Complex<T>>>) -> Vec<Vec<Complex<T>>> {
   let mut input_tp = tp(&input_matrix);
   let mut planer = FftPlannerAvx::new().unwrap();
   let fft = planer.plan_fft_inverse(input_tp[0].len());
@@ -45,8 +46,8 @@ pub fn ifft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
     fft.process(&mut row);
     let row_length = row.len();
     row.iter_mut().for_each(|el| {
-      el.re = el.re / row_length as f64;
-      el.im = el.im / row_length as f64;
+      el.re = el.re / T::from_usize(row_length).expect("Can't convert usize to this type");
+      el.im = el.im / T::from_usize(row_length).expect("Can't convert usize to this type");
     });
   });
   let mut input_tp_tp = tp(&input_tp);
@@ -55,8 +56,8 @@ pub fn ifft2(input_matrix: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
     fft.process(&mut row);
     let row_length = row.len();
     row.iter_mut().for_each(|el| {
-      el.re = el.re / row_length as f64;
-      el.im = el.im / row_length as f64;
+      el.re = el.re / T::from_usize(row_length).expect("Can't convert usize to this type");
+      el.im = el.im / T::from_usize(row_length).expect("Can't convert usize to this type");
     });
   });
   input_tp_tp
@@ -70,7 +71,7 @@ pub fn conj(i: Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
 }
 
 /// Rotate the matrix counter clockwise 180 degrees
-pub fn rot180(i: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
+pub fn rot180<T: Clone>(i: &Vec<Vec<T>>) -> Vec<Vec<T>> {
   let mut new_matrix = i.clone();
   new_matrix.reverse();
   new_matrix.iter_mut().for_each(|row| row.reverse());
@@ -78,13 +79,13 @@ pub fn rot180(i: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
 }
 
 /// Rotate the matrix counter clockwise 180 degrees inplace
-pub fn rot180_inplace(i: &mut Vec<Vec<Complex<f64>>>) {
+pub fn rot180_inplace<T>(i: &mut Vec<Vec<T>>) {
   i.reverse();
   i.iter_mut().for_each(|row| row.reverse());
 }
 
 /// Elementwise multiply then sum
-pub fn conv(a: &Vec<Vec<Complex<f64>>>, b: &Vec<Vec<Complex<f64>>>) -> Complex<f64> {
+pub fn conv<T: Num + Copy>(a: &Vec<Vec<Complex<T>>>, b: &Vec<Vec<Complex<T>>>) -> Complex<T> {
   a.iter()
     .zip(b.iter())
     .map(|(row_a, row_b)| {
@@ -92,7 +93,7 @@ pub fn conv(a: &Vec<Vec<Complex<f64>>>, b: &Vec<Vec<Complex<f64>>>) -> Complex<f
         .iter()
         .zip(row_b.iter())
         .map(|(a_el, b_el)| a_el * b_el)
-        .sum::<Complex<f64>>()
+        .sum::<Complex<T>>()
     })
     .sum()
 }
@@ -100,10 +101,10 @@ pub fn conv(a: &Vec<Vec<Complex<f64>>>, b: &Vec<Vec<Complex<f64>>>) -> Complex<f
 /// 2d full convolution with fft2 and ifft2 boosted
 /// Refer to @Royi's answer in https://stackoverflow.com/questions/50614085/applying-low-pass-and-laplace-of-gaussian-filter-in-frequency-domain
 /// and @ZR Han's point out on https://stackoverflow.com/questions/12253984/linear-convolution-of-two-images-in-matlab-using-fft2
-pub fn conv2_fft(
-  picture: &Vec<Vec<Complex<f64>>>,
-  kernel: &Vec<Vec<Complex<f64>>>,
-) -> Vec<Vec<Complex<f64>>> {
+pub fn conv2_fft<T: FftNum>(
+  picture: &Vec<Vec<Complex<T>>>,
+  kernel: &Vec<Vec<Complex<T>>>,
+) -> Vec<Vec<Complex<T>>> {
   let picture_width = picture[0].len();
   let picture_height = picture.len();
   let kernel_width = kernel[0].len();
@@ -118,17 +119,14 @@ pub fn conv2_fft(
           .iter()
           .zip(kernel_row.iter())
           .map(|(i_el, k_el)| i_el * k_el)
-          .collect::<Vec<Complex<f64>>>()
+          .collect::<Vec<Complex<T>>>()
       })
-      .collect::<Vec<Vec<Complex<f64>>>>(),
+      .collect::<Vec<Vec<Complex<T>>>>(),
   )
 }
 
 /// 2d full convolution with just hard matrix multiply
-pub fn conv2(
-  picture: &Vec<Vec<Complex<f64>>>,
-  kernel: &Vec<Vec<Complex<f64>>>,
-) -> Vec<Vec<Complex<f64>>> {
+pub fn conv2<T: Num + Zero + Copy>(picture: &Vec<Vec<T>>, kernel: &Vec<Vec<T>>) -> Vec<Vec<T>> {
   let picture_width = picture[0].len();
   let picture_height = picture.len();
   let kernel_width = kernel[0].len();
@@ -138,8 +136,7 @@ pub fn conv2(
   let conv_workspace_height = picture_height + kernel_height * 2 - 2;
 
   // make a zero padded workspace matrix
-  let mut conv_workspace_arr =
-    Array2::<Complex<f64>>::zeros((conv_workspace_height, conv_workspace_width));
+  let mut conv_workspace_arr = Array2::<T>::zeros((conv_workspace_height, conv_workspace_width));
 
   // copy the image to the center of the workspace
   for (idx, row) in picture.iter().enumerate() {
@@ -148,7 +145,7 @@ pub fn conv2(
     }
   }
 
-  let mut kernel_arr = Array2::<Complex<f64>>::zeros((kernel_height, kernel_width));
+  let mut kernel_arr = Array2::<T>::zeros((kernel_height, kernel_width));
   kernel.iter().enumerate().for_each(|(row_idx, row)| {
     row.iter().enumerate().for_each(|(col_idx, el)| {
       kernel_arr[[row_idx, col_idx]] = el.clone();
@@ -159,7 +156,7 @@ pub fn conv2(
     .windows((kernel_height, kernel_width))
     .into_iter()
     .map(|window| (&window * &kernel_arr).sum())
-    .collect::<Vec<Complex<f64>>>();
+    .collect::<Vec<T>>();
   result_flat
     .chunks(picture_width + kernel_width - 1)
     .map(|chunk| chunk.to_vec())
