@@ -72,7 +72,7 @@ pub fn conj(i: Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
 }
 
 /// Rotate the matrix counter clockwise 180 degrees
-pub fn rot180(i: Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
+pub fn rot180(i: &Vec<Vec<Complex<f64>>>) -> Vec<Vec<Complex<f64>>> {
   let mut new_matrix = i.clone();
   new_matrix.reverse();
   new_matrix.iter_mut().for_each(|row| row.reverse());
@@ -103,8 +103,8 @@ pub fn conv(a: &Vec<Vec<Complex<f64>>>, b: &Vec<Vec<Complex<f64>>>) -> Complex<f
 /// Refer to @Royi's answer in https://stackoverflow.com/questions/50614085/applying-low-pass-and-laplace-of-gaussian-filter-in-frequency-domain
 /// and @ZR Han's point out on https://stackoverflow.com/questions/12253984/linear-convolution-of-two-images-in-matlab-using-fft2
 pub fn conv2_fft(
-  picture: Vec<Vec<Complex<f64>>>,
-  kernel: Vec<Vec<Complex<f64>>>,
+  picture: &Vec<Vec<Complex<f64>>>,
+  kernel: &Vec<Vec<Complex<f64>>>,
 ) -> Vec<Vec<Complex<f64>>> {
   let picture_width = picture[0].len();
   let picture_height = picture.len();
@@ -128,8 +128,8 @@ pub fn conv2_fft(
 
 /// 2d full convolution with just hard matrix multiply
 pub fn conv2(
-  picture: Vec<Vec<Complex<f64>>>,
-  kernel: Vec<Vec<Complex<f64>>>,
+  picture: &Vec<Vec<Complex<f64>>>,
+  kernel: &Vec<Vec<Complex<f64>>>,
 ) -> Vec<Vec<Complex<f64>>> {
   let picture_width = picture[0].len();
   let picture_height = picture.len();
@@ -246,8 +246,8 @@ mod test {
       vec![Complex::new(1.0, 0.0), Complex::new(3.0, 0.0)],
       vec![Complex::new(4.0, 0.0), Complex::new(2.0, 0.0)],
     ];
-    pretty_print(&conv2(x.clone(), y.clone()));
-    pretty_print(&conv2_fft(x, y));
+    pretty_print(&conv2(&x, &y));
+    pretty_print(&conv2_fft(&x, &y));
   }
   #[test]
   fn test_fft_ifft() {
