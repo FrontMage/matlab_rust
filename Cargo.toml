@@ -1,0 +1,15 @@
+[package]
+name = "matlab_rust"
+version = "0.1.0"
+authors = ["FrontMage <xbgxwh@outlook.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num-complex = "0.4.0"
+rustfft = { version = "6.0.0", features = [ "avx", "sse" ] }
+transpose = "0.2.1"
+ndarray = { version = "0.15.1", features = [ "rayon" ] }
+rayon = "1.5.0"
+num-traits = "0.2.14"
